@@ -147,7 +147,7 @@ def init_random_2d_freqs(head_dim: int, num_heads: int, theta: float = 10.0, rot
 def compute_cis(freqs, t_x, t_y):
     N = t_x.shape[0]
     # No float 16 for this range
-    with torch.cuda.amp.autocast(enabled=False):
+    with torch.amp.autocast(device_type=freqs.device.type, enabled=False):
         freqs_x = (t_x.unsqueeze(-1) @ freqs[0].unsqueeze(-2))
         freqs_y = (t_y.unsqueeze(-1) @ freqs[1].unsqueeze(-2))
         freqs_cis = torch.polar(torch.ones_like(freqs_x), freqs_x + freqs_y)
@@ -292,7 +292,7 @@ class VanillaAttentionBlock(nn.Module):
             # get pair-wise relative position index for each token inside the window
             coords_h = torch.arange(self.ws)
             coords_w = torch.arange(self.ws)
-            coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+            coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing='ij'))  # 2, Wh, Ww
             coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
             relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
             relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
@@ -504,7 +504,7 @@ class Fusion(nn.Module):
             # get pair-wise relative position index for each token inside the window
             coords_h = torch.arange(self.ws)
             coords_w = torch.arange(self.ws)
-            coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+            coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing='ij'))  # 2, Wh, Ww
             coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
             relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
             relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
@@ -619,7 +619,7 @@ class RoGLSNet(nn.Module):
         super().__init__()
 
         encoder_channels = (64, 128, 320, 512)
-        self.backbone = cdfformer_s18(features_only=True, pretrained=True)
+        self.backbone = cdfformer_s18(features_only=True, pretrained=pretrained)
 
         self.segmentation_head = nn.Sequential(ConvBNReLU(decode_channels, decode_channels),
                                                nn.Dropout2d(p=dropout, inplace=True),
@@ -668,10 +668,13 @@ class RoGLSNet(nn.Module):
         self.proj = SeparableConvBN(decode_channels, decode_channels, kernel_size=3)
         self.act = nn.ReLU6()
 
-    def forward(self, x):
-        h, w = x.size()[-2:]
-        res1, res2, res3, res4 = self.backbone(x)
+    def decode_features(self, features, output_size):
+        """Decode a four-level feature pyramid.
 
+        Keeping the decoder separate lets multimodal variants fuse aligned
+        features without duplicating RoGLSNet's decoder implementation.
+        """
+        res1, res2, res3, res4 = features
         res4 = self.pre_conv4(res4)
         res3 = self.pre_conv3(res3)
         res2 = self.pre_conv2(res2)
@@ -700,13 +703,17 @@ class RoGLSNet(nn.Module):
         out = self.proj(out) + shortcut
         out = self.act(out)
 
-        out = F.interpolate(out, size=(h, w), mode='bilinear', align_corners=False)
+        out = F.interpolate(out, size=output_size, mode='bilinear', align_corners=False)
         out = self.segmentation_head(out)
 
         if self.training:
             return out, ah
         else:
             return out
+
+    def forward(self, x):
+        features = self.backbone(x)
+        return self.decode_features(features, x.shape[-2:])
 
 
 if __name__ == '__main__':

@@ -1,0 +1,23 @@
+{
+  "seed": 42,
+  "dataset_manifest": "/home/pc/桌面/paral/AI-Scientist-v3/examples/roglsnet_multimodal/resources/dataset_paper_1024/manifest.json",
+  "output_dir": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_agf_1024",
+  "initial_optical_checkpoint": "",
+  "pretrained": true,
+  "epochs": 100,
+  "batch_size": 1,
+  "gradient_accumulation_steps": 8,
+  "patch_size": 1024,
+  "learning_rate": 0.0006,
+  "backbone_learning_rate": 0.00006,
+  "weight_decay": 0.01,
+  "lookahead_k": 5,
+  "lookahead_alpha": 0.5,
+  "scheduler_t0": 15,
+  "scheduler_t_mult": 2,
+  "auxiliary_loss_weight": 0.4,
+  "checkpoint_interval": 5,
+  "num_workers": 2,
+  "mixed_precision": true,
+  "run_final_test": false
+}
