@@ -9,7 +9,12 @@ from pathlib import Path
 import torch
 
 from .data import DatasetConfig, PairedRasterDataset
-from .height_train import ShuffledAuxiliaryDataset, evaluate_zero_auxiliary
+from .height_train import (
+    ShuffledAuxiliaryDataset,
+    apply_path_overrides,
+    evaluate_zero_auxiliary,
+)
+from .input_fusion_model import InputFusionRoGLSNet
 from .model import AsymmetricFusionRoGLSNet
 from .train import evaluate_loader, make_loader, seed_everything
 
@@ -19,12 +24,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--model",
+        choices=("four_stage", "input_fusion"),
+        default="four_stage",
+        help="architecture stored in the checkpoint",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    protocol = json.loads(args.config.resolve().read_text(encoding="utf-8"))
+    protocol = apply_path_overrides(
+        json.loads(args.config.resolve().read_text(encoding="utf-8"))
+    )
     dataset_config = DatasetConfig.load(protocol["dataset_manifest"])
     seed_everything(int(protocol["seed"]))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,7 +55,10 @@ def main() -> None:
         shuffle=False,
         device=device,
     )
-    model = AsymmetricFusionRoGLSNet(
+    model_class = (
+        InputFusionRoGLSNet if args.model == "input_fusion" else AsymmetricFusionRoGLSNet
+    )
+    model = model_class(
         num_classes=dataset_config.num_classes,
         auxiliary_channels=dataset_config.auxiliary_channels,
         pretrained=False,
@@ -76,6 +92,7 @@ def main() -> None:
     )
     margin = normal["mf1"] - max(zero["mf1"], shuffled_metrics["mf1"])
     result = {
+        "model": args.model,
         "checkpoint": str(args.checkpoint.resolve()),
         "tta": False,
         "normal": {**normal, "per_class": normal_per_class},

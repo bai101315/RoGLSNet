@@ -1,0 +1,73 @@
+{
+  "auxiliary_channels": 1,
+  "auxiliary_dir": "auxiliary",
+  "auxiliary_mean": [
+    285.06334936404653
+  ],
+  "auxiliary_std": [
+    23.81859142054515
+  ],
+  "class_names": [
+    "impervious_surface",
+    "building",
+    "low_vegetation",
+    "tree",
+    "car",
+    "clutter"
+  ],
+  "dataset_name": "ISPRS Vaihingen",
+  "eval_stride": 1024,
+  "ignore_index": 6,
+  "mask_dir": "masks",
+  "modality_name": "DSM",
+  "num_classes": 6,
+  "patch_size": 1024,
+  "placeholder": false,
+  "primary_dir": "primary",
+  "primary_modality": "IRRG",
+  "protocol": "RoGLSNet Vaihingen paper split, 1024px",
+  "test_areas": [
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    20,
+    22,
+    24,
+    27,
+    29,
+    31,
+    33,
+    35,
+    38
+  ],
+  "test_labels": "eroded complete",
+  "test_samples": 113,
+  "train_areas": [
+    1,
+    3,
+    5,
+    7,
+    11,
+    13,
+    15,
+    17,
+    21,
+    23,
+    26,
+    28,
+    32,
+    34,
+    37
+  ],
+  "train_samples": 229,
+  "train_stride": 512,
+  "val_areas": [
+    30
+  ],
+  "val_samples": 6
+}

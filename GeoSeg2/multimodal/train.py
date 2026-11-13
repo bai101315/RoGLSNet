@@ -6,6 +6,7 @@ import argparse
 import csv
 import itertools
 import json
+import os
 import random
 import tempfile
 import time
@@ -25,6 +26,7 @@ from .checkpointing import (
     save_training_checkpoint,
 )
 from .data import DatasetConfig, PairedRasterDataset
+from .input_fusion_model import InputFusionRoGLSNet
 from .loss import RoGLSNetLoss
 from .metrics import SegmentationMetrics
 from .model import AsymmetricFusionRoGLSNet
@@ -198,7 +200,41 @@ def build_optimizer(
     return optimizer, scheduler
 
 
-def load_optical_initialization(model: AsymmetricFusionRoGLSNet, path: Path) -> None:
+def build_model(
+    protocol: dict[str, Any],
+    dataset_config: DatasetConfig,
+    *,
+    pretrained: bool,
+) -> nn.Module:
+    model_name = str(protocol.get("model", "four_stage"))
+    model_classes = {
+        "four_stage": AsymmetricFusionRoGLSNet,
+        "input_fusion": InputFusionRoGLSNet,
+    }
+    if model_name not in model_classes:
+        raise ValueError(f"unknown model: {model_name}")
+    return model_classes[model_name](
+        num_classes=dataset_config.num_classes,
+        auxiliary_channels=dataset_config.auxiliary_channels,
+        pretrained=pretrained,
+    )
+
+
+def apply_path_overrides(protocol: dict[str, Any]) -> dict[str, Any]:
+    protocol = dict(protocol)
+    overrides = {
+        "ROGLS_DATASET_MANIFEST": "dataset_manifest",
+        "ROGLS_OUTPUT_DIR": "output_dir",
+        "ROGLS_INITIAL_CHECKPOINT": "initial_optical_checkpoint",
+    }
+    for environment_name, key in overrides.items():
+        value = os.environ.get(environment_name, "").strip()
+        if value:
+            protocol[key] = value
+    return protocol
+
+
+def load_optical_initialization(model: nn.Module, path: Path) -> None:
     state = torch.load(path, map_location="cpu", weights_only=True)
     if isinstance(state, dict):
         state = state.get("state_dict", state.get("model_state_dict", state))
@@ -387,9 +423,9 @@ def run_preflight(protocol: dict[str, Any], dataset_config: DatasetConfig) -> No
         device=device,
         generator=generator,
     )
-    model = AsymmetricFusionRoGLSNet(
-        num_classes=dataset_config.num_classes,
-        auxiliary_channels=dataset_config.auxiliary_channels,
+    model = build_model(
+        protocol,
+        dataset_config,
         pretrained=bool(protocol.get("pretrained", True)),
     ).to(device)
     criterion = RoGLSNetLoss(
@@ -433,9 +469,9 @@ def run_preflight(protocol: dict[str, Any], dataset_config: DatasetConfig) -> No
             elapsed_seconds=0.0,
             protocol=protocol,
         )
-        restored_model = AsymmetricFusionRoGLSNet(
-            num_classes=dataset_config.num_classes,
-            auxiliary_channels=dataset_config.auxiliary_channels,
+        restored_model = build_model(
+            protocol,
+            dataset_config,
             pretrained=False,
         ).to(device)
         restored_optimizer, restored_scheduler = build_optimizer(restored_model, protocol)
@@ -484,7 +520,9 @@ def run_preflight(protocol: dict[str, Any], dataset_config: DatasetConfig) -> No
 
 def main() -> None:
     args = parse_args()
-    protocol = json.loads(args.config.resolve().read_text(encoding="utf-8"))
+    protocol = apply_path_overrides(
+        json.loads(args.config.resolve().read_text(encoding="utf-8"))
+    )
     dataset_config = DatasetConfig.load(protocol["dataset_manifest"])
     if args.preflight:
         run_preflight(protocol, dataset_config)
@@ -553,9 +591,9 @@ def main() -> None:
         else None
     )
 
-    model = AsymmetricFusionRoGLSNet(
-        num_classes=dataset_config.num_classes,
-        auxiliary_channels=dataset_config.auxiliary_channels,
+    model = build_model(
+        protocol,
+        dataset_config,
         pretrained=bool(protocol.get("pretrained", True)),
     )
     initialization = str(protocol.get("initial_optical_checkpoint", "")).strip()

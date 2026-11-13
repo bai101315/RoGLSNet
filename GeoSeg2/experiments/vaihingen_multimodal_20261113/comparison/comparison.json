@@ -1,0 +1,50 @@
+[
+  {
+    "dsm_effective": "n/a",
+    "method": "RoGLSNet paper single-modal",
+    "mf1": 0.9131,
+    "miou": 0.8431,
+    "oa": 0.9328,
+    "tta": "paper"
+  },
+  {
+    "dsm_effective": false,
+    "dsm_mf1_margin": 1.0728836059570312e-05,
+    "method": "Input-level IRRG+DSM",
+    "metrics_path": "../input_fusion/metrics.json",
+    "mf1": 0.904071033000946,
+    "miou": 0.8269567489624023,
+    "oa": 0.9109339118003845,
+    "tta": "released_d4_multiscale"
+  },
+  {
+    "dsm_effective": false,
+    "dsm_mf1_margin": -0.0001914501190185547,
+    "method": "Four-stage gated fusion",
+    "metrics_path": "../four_stage/metrics.json",
+    "mf1": 0.8933923840522766,
+    "miou": 0.8096221685409546,
+    "oa": 0.9015948176383972,
+    "tta": "released_d4_multiscale"
+  },
+  {
+    "dsm_effective": true,
+    "dsm_mf1_margin": 0.005519092082977295,
+    "method": "HeightSelective stage 1",
+    "metrics_path": "../height_stage1/metrics.json",
+    "mf1": 0.8977624773979187,
+    "miou": 0.8167713284492493,
+    "oa": 0.9070906639099121,
+    "tta": "released_d4_multiscale_40_view"
+  },
+  {
+    "dsm_effective": true,
+    "dsm_mf1_margin": 0.005312442779541016,
+    "method": "HeightSelective stage 2",
+    "metrics_path": "../height_stage2/metrics.json",
+    "mf1": 0.8985147476196289,
+    "miou": 0.8179348111152649,
+    "oa": 0.9071324467658997,
+    "tta": "released_d4_multiscale_40_view"
+  }
+]

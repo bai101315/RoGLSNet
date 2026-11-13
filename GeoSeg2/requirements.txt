@@ -4,6 +4,8 @@ pytorch-lightning==2.3.0
 albumentations
 ttach
 numpy
+tifffile
+Pillow
 tqdm
 opencv-python
 scipy

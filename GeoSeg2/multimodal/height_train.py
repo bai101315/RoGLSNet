@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import random
 import tempfile
 import time
@@ -31,6 +32,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--preflight", action="store_true")
     return parser.parse_args()
+
+
+def apply_path_overrides(protocol: dict[str, Any]) -> dict[str, Any]:
+    """Override machine-specific paths without changing a recorded protocol."""
+    overrides = {
+        "ROGLS_DATASET_MANIFEST": "dataset_manifest",
+        "ROGLS_OUTPUT_DIR": "output_dir",
+        "ROGLS_INITIAL_CHECKPOINT": "initial_checkpoint",
+    }
+    protocol = dict(protocol)
+    for environment_name, key in overrides.items():
+        value = os.environ.get(environment_name, "").strip()
+        if value:
+            protocol[key] = value
+    return protocol
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -398,7 +414,9 @@ def _flatten_per_class(per_class: dict[str, dict[str, float | int]]) -> dict[str
 
 def main() -> None:
     args = parse_args()
-    protocol = json.loads(args.config.resolve().read_text(encoding="utf-8"))
+    protocol = apply_path_overrides(
+        json.loads(args.config.resolve().read_text(encoding="utf-8"))
+    )
     dataset_config = DatasetConfig.load(protocol["dataset_manifest"])
     if args.preflight:
         run_preflight(protocol, dataset_config)

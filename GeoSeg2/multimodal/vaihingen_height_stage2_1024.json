@@ -30,7 +30,8 @@
     "sources": [
       {
         "name": "Input-level IRRG+DSM",
-        "path": "/home/pc/桌面/paral/AI-Scientist-v3/examples/roglsnet_multimodal/results/paper_protocol_irrg_dsm_1024_20261112/metrics.json"
+        "path": "/home/pc/桌面/paral/AI-Scientist-v3/examples/roglsnet_multimodal/results/paper_protocol_irrg_dsm_1024_20261112/metrics.json",
+        "diagnostics_path": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/experiments/vaihingen_multimodal_20261113/input_fusion/auxiliary_diagnostics.json"
       },
       {
         "name": "Four-stage gated fusion",
