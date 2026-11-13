@@ -7,6 +7,7 @@
 - `InputFusionRoGLSNet`：把 DSM 映射到三通道，在输入端以门控残差注入 IRRG。它的绝对指标最高，但置零/打乱对照表明 DSM 几乎没有贡献，因此只适合作为较强的光学核心。
 - `AsymmetricFusionRoGLSNet`：在 CDFormer 四层特征上加入 DSM 金字塔，实验表明 DSM 没有被有效利用。
 - `HeightSelectiveRoGLSNet`：只在全局语义、局部语义和边界处选择性注入高度，并带高度边界辅助监督。DSM 利用通过了置零/打乱对照，但绝对精度仍低于输入级基线。
+- `DSMRelativeRoGLSNet`：保留纯光学 RoGLSNet，只在 RoAFM softmax 前加入一个窗口内相对高差偏置；新增参数只有一个高度强度标量。
 
 完整结果和逐轮记录见 [`../experiments/vaihingen_multimodal_20261113`](../experiments/vaihingen_multimodal_20261113)。大权重不进入 Git 历史，发布在 GitHub Release `vaihingen-multimodal-20261113`。
 
@@ -80,6 +81,22 @@ python -m multimodal.height_train \
 
 输入级基线可用 `multimodal/vaihingen_input_fusion_1024.json` 与 `multimodal.train` 复现。RTX 3060 用 batch 1、累积 8；RTX 3090 建议先预检 batch 4、累积 2，保持有效 batch 8。
 
+极简相对高差版使用原始 DSM 的训练集统计标准化，不使用按区域归一化数据：
+
+```bash
+export ROGLS_DATASET_MANIFEST=/data/dataset_paper_1024/manifest.json
+export ROGLS_INITIAL_CHECKPOINT=/path/input_fusion_best_model.pt
+export ROGLS_OUTPUT_DIR=$PWD/runs/vaihingen_dsm_rope_1024
+
+python -m multimodal.dsm_rope_train \
+  --config multimodal/vaihingen_dsm_rope_1024.json \
+  --preflight
+python -m multimodal.dsm_rope_train \
+  --config multimodal/vaihingen_dsm_rope_1024.json
+```
+
+断点续训使用同一组环境变量，增加 `--resume /path/resume_checkpoint.pt`。第 1–5 轮只学习高度强度，第 6–40 轮只解冻 RoAFM 及其后的解码模块。
+
 ## DSM 有效性诊断
 
 以下命令只推理，不训练：
@@ -94,6 +111,16 @@ python -m multimodal.diagnose_auxiliary \
 
 报告比较正常 DSM、全零 DSM 和跨区域打乱 DSM。正常 DSM 的 mF1 至少高于最强对照 `0.002`，才能把提升归因于第二模态。
 
-## 3090 后续方向
+`dsm_relative_rope` 诊断同时输出前五类平均 `Boundary F1@3px`：
 
-不要原样重跑已经失败的四层融合。下一版加载输入级权重中的 `segmenter` 作为光学核心，不把几乎失效的输入门控当作成果；另用区域归一化 DSM 提取坡度、局部高差和边缘，只对 RoAFM value 与最终 logits 做有界残差修正。详细门槛和训练顺序见 [`HANDOFF_20261113.md`](HANDOFF_20261113.md)。
+```bash
+python -m multimodal.diagnose_auxiliary \
+  --model dsm_relative_rope \
+  --config multimodal/vaihingen_dsm_rope_1024.json \
+  --checkpoint /path/best_model.pt \
+  --output runs/dsm_rope_diagnostics.json
+```
+
+## 3090 当前方向
+
+优先运行 `DSMRelativeRoGLSNet`，不再重复四层融合或 HeightSelective 两阶段结构。模型不对 DSM 做特征编码：二维 RoPE 提供平面相对位置，标准化 DSM 的相对高差只用于抑制跨高度边界注意力。以官方测试集无 TTA mF1 选最优模型，最后只跑一次 D4，并同时检查正常/置零/打乱 DSM 与边界 F1。

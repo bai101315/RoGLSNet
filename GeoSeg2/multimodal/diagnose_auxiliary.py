@@ -9,14 +9,15 @@ from pathlib import Path
 import torch
 
 from .data import DatasetConfig, PairedRasterDataset
+from .boundary_metrics import evaluate_with_boundary
+from .dsm_rope_model import DSMRelativeRoGLSNet
 from .height_train import (
     ShuffledAuxiliaryDataset,
     apply_path_overrides,
-    evaluate_zero_auxiliary,
 )
 from .input_fusion_model import InputFusionRoGLSNet
 from .model import AsymmetricFusionRoGLSNet
-from .train import evaluate_loader, make_loader, seed_everything
+from .train import make_loader, seed_everything
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--model",
-        choices=("four_stage", "input_fusion"),
+        choices=("four_stage", "input_fusion", "dsm_relative_rope"),
         default="four_stage",
         help="architecture stored in the checkpoint",
     )
@@ -55,9 +56,12 @@ def main() -> None:
         shuffle=False,
         device=device,
     )
-    model_class = (
-        InputFusionRoGLSNet if args.model == "input_fusion" else AsymmetricFusionRoGLSNet
-    )
+    model_classes = {
+        "four_stage": AsymmetricFusionRoGLSNet,
+        "input_fusion": InputFusionRoGLSNet,
+        "dsm_relative_rope": DSMRelativeRoGLSNet,
+    }
+    model_class = model_classes[args.model]
     model = model_class(
         num_classes=dataset_config.num_classes,
         auxiliary_channels=dataset_config.auxiliary_channels,
@@ -68,11 +72,11 @@ def main() -> None:
         state = state["model_state_dict"]
     model.load_state_dict(state)
 
-    normal, normal_per_class = evaluate_loader(
-        model, loader, dataset_config, device, amp_enabled, use_d4=False
-    )
-    zero, zero_per_class = evaluate_zero_auxiliary(
+    normal, normal_per_class, normal_boundary = evaluate_with_boundary(
         model, loader, dataset_config, device, amp_enabled
+    )
+    zero, zero_per_class, zero_boundary = evaluate_with_boundary(
+        model, loader, dataset_config, device, amp_enabled, zero_auxiliary=True
     )
     shuffled = ShuffledAuxiliaryDataset(dataset)
     shuffled_loader = make_loader(
@@ -82,24 +86,32 @@ def main() -> None:
         shuffle=False,
         device=device,
     )
-    shuffled_metrics, shuffled_per_class = evaluate_loader(
+    shuffled_metrics, shuffled_per_class, shuffled_boundary = evaluate_with_boundary(
         model,
         shuffled_loader,
         dataset_config,
         device,
         amp_enabled,
-        use_d4=False,
     )
     margin = normal["mf1"] - max(zero["mf1"], shuffled_metrics["mf1"])
+    boundary_margin = float(normal_boundary["mean_bf1"]) - max(
+        float(zero_boundary["mean_bf1"]), float(shuffled_boundary["mean_bf1"])
+    )
     result = {
         "model": args.model,
         "checkpoint": str(args.checkpoint.resolve()),
         "tta": False,
-        "normal": {**normal, "per_class": normal_per_class},
-        "zero": {**zero, "per_class": zero_per_class},
-        "shuffled": {**shuffled_metrics, "per_class": shuffled_per_class},
+        "normal": {**normal, "per_class": normal_per_class, "boundary": normal_boundary},
+        "zero": {**zero, "per_class": zero_per_class, "boundary": zero_boundary},
+        "shuffled": {
+            **shuffled_metrics,
+            "per_class": shuffled_per_class,
+            "boundary": shuffled_boundary,
+        },
         "mf1_margin_over_strongest_control": margin,
+        "boundary_mf1_margin_over_strongest_control": boundary_margin,
         "effective_at_0.002": margin >= 0.002,
+        "boundary_effective_at_0.002": boundary_margin >= 0.002,
     }
     output = args.output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

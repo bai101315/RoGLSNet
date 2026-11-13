@@ -35,6 +35,7 @@ def save_training_checkpoint(
     logs: list[dict[str, float | int]],
     elapsed_seconds: float,
     protocol: dict[str, Any],
+    extra_state: dict[str, Any] | None = None,
 ) -> None:
     atomic_torch_save(
         {
@@ -56,6 +57,7 @@ def save_training_checkpoint(
             "logs": logs,
             "elapsed_seconds": elapsed_seconds,
             "protocol": protocol,
+            "extra_state": extra_state or {},
         },
         path,
     )
@@ -86,4 +88,3 @@ def load_training_checkpoint(
         )
     random.setstate(payload["python_random_state"])
     return payload
-

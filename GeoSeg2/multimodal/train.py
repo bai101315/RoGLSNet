@@ -12,7 +12,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import torch
@@ -267,8 +267,11 @@ def train_epoch(
     scaler: torch.amp.GradScaler,
     amp_enabled: bool,
     accumulation_steps: int,
+    training_mode: Callable[[nn.Module], None] | None = None,
 ) -> float:
     model.train()
+    if training_mode is not None:
+        training_mode(model)
     total_loss = 0.0
     optimizer.zero_grad(set_to_none=True)
     batch_count = len(loader)

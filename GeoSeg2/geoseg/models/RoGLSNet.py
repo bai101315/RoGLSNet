@@ -545,8 +545,34 @@ class Fusion(nn.Module):
         x = F.pad(x, pad=(0, 1, 0, 1), mode='reflect')
         return x
 
-    def forward(self, R, S):
+    def relative_height_bias(self, height, height_strength, output_size):
+        """Build a shared per-window bias from standardized DSM height differences."""
+        if height.ndim != 4 or height.shape[1] != 1:
+            raise ValueError(f"height must have shape [B,1,H,W], got {tuple(height.shape)}")
+        if height_strength is None or height_strength.numel() != 1:
+            raise ValueError("height_strength must be a scalar tensor")
+
+        height = F.adaptive_avg_pool2d(height.float(), output_size)
+        height = self.pad(height, self.ws)
+        _, _, Hp, Wp = height.shape
+        tokens = rearrange(
+            height,
+            'b 1 (hh ws1) (ww ws2) -> (b hh ww) (ws1 ws2)',
+            hh=Hp // self.ws,
+            ww=Wp // self.ws,
+            ws1=self.ws,
+            ws2=self.ws,
+        )
+        differences = (tokens.unsqueeze(-1) - tokens.unsqueeze(-2)).abs().clamp(max=3.0)
+        return -height_strength.float() * differences.unsqueeze(1)
+
+    def forward(self, R, S, height=None, height_strength=None):
         B, C, H, W = R.size()
+
+        if (height is None) != (height_strength is None):
+            raise ValueError("height and height_strength must be provided together")
+        if height is not None and height.shape[0] != B:
+            raise ValueError("height and optical features must have the same batch size")
 
         S = self.up4(S)
 
@@ -587,6 +613,10 @@ class Fusion(nn.Module):
                 self.ws * self.ws, self.ws * self.ws, -1)  # Wh*Ww,Wh*Ww,nH
             relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
             dots += relative_position_bias.unsqueeze(0)
+
+        if height is not None:
+            height_bias = self.relative_height_bias(height, height_strength, (H, W))
+            dots = dots + height_bias.to(device=dots.device, dtype=dots.dtype)
 
         attn = dots.softmax(dim=-1)
         attn = attn @ value
@@ -668,7 +698,7 @@ class RoGLSNet(nn.Module):
         self.proj = SeparableConvBN(decode_channels, decode_channels, kernel_size=3)
         self.act = nn.ReLU6()
 
-    def decode_features(self, features, output_size):
+    def decode_features(self, features, output_size, height=None, height_strength=None):
         """Decode a four-level feature pyramid.
 
         Keeping the decoder separate lets multimodal variants fuse aligned
@@ -688,7 +718,7 @@ class RoGLSNet(nn.Module):
         R = torch.cat([res2, res3, res4], dim=1)
         R = self.CLC3x3_1(R)
 
-        feature = self.fusion(R, S)
+        feature = self.fusion(R, S, height=height, height_strength=height_strength)
         # feature = R
 
         S = self.up4(S)

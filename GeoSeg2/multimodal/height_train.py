@@ -69,6 +69,7 @@ def write_live_artifacts(
     total_epochs: int,
     state: str,
     elapsed_seconds: float,
+    title: str = "HeightSelectiveRoGLSNet",
 ) -> None:
     completed = int(logs[-1]["epoch"]) if logs else 0
     average = elapsed_seconds / completed if completed else 0.0
@@ -131,7 +132,7 @@ def write_live_artifacts(
         )
     markdown = "\n".join(
         (
-            "# HeightSelectiveRoGLSNet 训练状态",
+            f"# {title} 训练状态",
             "",
             f"- 状态：`{state}`",
             f"- 进度：**{completed}/{total_epochs}**（{status['progress_percent']:.1f}%）",
