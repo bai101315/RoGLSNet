@@ -1,0 +1,50 @@
+{
+  "seed": 43,
+  "stage": 2,
+  "dataset_manifest": "/home/pc/桌面/paral/AI-Scientist-v3/examples/roglsnet_multimodal/resources/dataset_heightnorm_1024/manifest.json",
+  "output_dir": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_height_stage2_1024",
+  "initial_checkpoint": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_height_stage1_1024/checkpoints/best_model.pt",
+  "pretrained": false,
+  "epochs": 40,
+  "freeze_epochs": 5,
+  "batch_size": 1,
+  "gradient_accumulation_steps": 8,
+  "fallback_batch_size": 1,
+  "fallback_gradient_accumulation_steps": 8,
+  "patch_size": 1024,
+  "learning_rate": 0.0001,
+  "backbone_learning_rate": 0.00001,
+  "refinement_learning_rate": 0.0006,
+  "weight_decay": 0.01,
+  "lookahead_k": 5,
+  "lookahead_alpha": 0.5,
+  "scheduler_t0": 10,
+  "scheduler_t_mult": 2,
+  "auxiliary_loss_weight": 0.4,
+  "boundary_loss_weight": 0.1,
+  "checkpoint_interval": 5,
+  "num_workers": 2,
+  "mixed_precision": true,
+  "comparison": {
+    "output_dir": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_height_comparison",
+    "sources": [
+      {
+        "name": "Input-level IRRG+DSM",
+        "path": "/home/pc/桌面/paral/AI-Scientist-v3/examples/roglsnet_multimodal/results/paper_protocol_irrg_dsm_1024_20261112/metrics.json"
+      },
+      {
+        "name": "Four-stage gated fusion",
+        "path": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_agf_1024/metrics.json",
+        "diagnostics_path": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_agf_1024/auxiliary_diagnostics.json"
+      },
+      {
+        "name": "HeightSelective stage 1",
+        "path": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_height_stage1_1024/metrics.json"
+      },
+      {
+        "name": "HeightSelective stage 2",
+        "path": "/home/pc/桌面/paral/RoGLSNet/GeoSeg2/runs/vaihingen_height_stage2_1024/metrics.json"
+      }
+    ]
+  }
+}
